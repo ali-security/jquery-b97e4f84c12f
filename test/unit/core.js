@@ -1353,6 +1353,67 @@ test("jQuery.parseHTML", function() {
 	equal( jQuery.parseHTML("<td><td>")[ 1 ].parentNode.nodeType, 11, "parentNode should be documentFragment" );
 });
 
+test( "jQuery.parseHTML(<a href>) - gh-2965", function() {
+	expect( 1 );
+
+	var html = "<a href='test.html'></a>",
+		href = jQuery.parseHTML( html )[ 0 ].href;
+
+	ok( /\/test\.html$/.test( href ), "href is not lost after parsing anchor" );
+});
+
+if ( jQuery.support.createHTMLDocument ) {
+	asyncTest("jQuery.parseHTML", function() {
+		expect ( 1 );
+
+		Globals.register("parseHTMLError");
+
+		jQuery.globalEval("parseHTMLError = false;");
+		jQuery.parseHTML( "<img src=x onerror='parseHTMLError = true'>" );
+
+		window.setTimeout(function() {
+			start();
+			equal( window.parseHTMLError, false, "onerror eventhandler has not been called." );
+		}, 2000);
+	});
+}
+
+// Guarded on the browser capability (not only on the support probe) so these
+// also run against a jQuery that lacks the probe; skipped where the probe
+// reports the inert document as unusable (IE<9, Safari 8).
+if ( jQuery.support.createHTMLDocument !== false &&
+	jQuery.isFunction( document.implementation && document.implementation.createHTMLDocument ) ) {
+
+	asyncTest( "jQuery.parseHTML(html[, keepScripts]) doesn't run inline event handlers (sonatype-2014-0026)", function() {
+		expect( 1 );
+
+		Globals.register("parseHTMLKeepScriptsError");
+
+		jQuery.globalEval("parseHTMLKeepScriptsError = [];");
+		jQuery.parseHTML( "<img src=x onerror='parseHTMLKeepScriptsError.push( 0 )'>" );
+		jQuery.parseHTML( "<img src=y onerror='parseHTMLKeepScriptsError.push( 1 )'>", true );
+		jQuery.parseHTML( "<img src=z onerror='parseHTMLKeepScriptsError.push( 2 )'>", null, true );
+
+		window.setTimeout(function() {
+			start();
+			deepEqual( window.parseHTMLKeepScriptsError, [], "onerror eventhandler has not been called." );
+		}, 2000);
+	});
+
+	testIframeWithCallback( "jQuery.parseHTML doesn't run inline event handlers - bundled jQuery 1.9.1 (src/sizzle/test/jquery.js) (sonatype-2014-0026)", "core/sizzleCopyParseHTML.html", function( version, results ) {
+		expect( 8 );
+
+		strictEqual( version, "1.9.1", "src/sizzle/test/jquery.js is jQuery 1.9.1" );
+		strictEqual( results.supportCreateHTMLDocument, true, "jQuery.support.createHTMLDocument" );
+		deepEqual( results.executed, [], "context-less jQuery.parseHTML ran no inline event handler" );
+		strictEqual( results.controlFired, true, "the same markup parsed with an explicit document context does run it (control)" );
+		ok( /\/test\.html$/.test( results.anchorHref ), "href is not lost after parsing anchor (gh-2965)" );
+		strictEqual( results.insertedText, "bold", "parsed nodes can be inserted into the page" );
+		strictEqual( results.singleTag, "span", "single tags are still parsed" );
+		strictEqual( results.explicitContextOwner, true, "an explicit context is still used" );
+	});
+}
+
 test("jQuery.parseJSON", function() {
 	expect( 20 );
 
