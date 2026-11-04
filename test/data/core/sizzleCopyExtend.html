@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	<title>Bundled jQuery 1.9.1 (src/sizzle/test/jquery.js) jQuery.extend( true, ... ) Object.prototype pollution</title>
+	<script src="../../../src/sizzle/test/jquery.js"></script>
+</head>
+<body>
+	<script>
+		var results = {};
+
+		// Each probe reports whether Object.prototype got polluted and then removes the
+		// pollution, so every vector is checked against a clean Object.prototype
+		function polluted( prop ) {
+			var result = prop in {};
+			delete Object.prototype[ prop ];
+			return result;
+		}
+
+		jQuery.extend( true, {}, JSON.parse( "{\"__proto__\": {\"devMode\": true}}" ) );
+		results.deep = polluted( "devMode" );
+
+		jQuery.extend( true, {}, JSON.parse( "{\"a\": {\"__proto__\": {\"nestedDevMode\": true}}}" ) );
+		results.nested = polluted( "nestedDevMode" );
+
+		jQuery.fn.extend( true, {}, JSON.parse( "{\"__proto__\": {\"fnDevMode\": true}}" ) );
+		results.fn = polluted( "fnDevMode" );
+
+		results.merged = JSON.stringify(
+			jQuery.extend( true, { a: { b: 1 } }, JSON.parse( "{\"a\": {\"c\": 2}, \"d\": 3}" ) )
+		);
+
+		window.parent.iframeCallback( jQuery.fn.jquery, results );
+	</script>
+</body>
+</html>

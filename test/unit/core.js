@@ -1101,6 +1101,20 @@ test("jQuery.extend(Object, Object)", function() {
 	deepEqual( options2, options2Copy, "Check if not modified: options2 must not be modified" );
 });
 
+test( "jQuery.extend( true, ... ) Object.prototype pollution", function() {
+	expect( 1 );
+
+	jQuery.extend( true, {}, JSON.parse( "{\"__proto__\": {\"devMode\": true}}" ) );
+	ok( !( "devMode" in {} ), "Object.prototype not polluted" );
+} );
+
+test( "jQuery.extend( true, ... ) nested Object.prototype pollution", function() {
+	expect( 1 );
+
+	jQuery.extend( true, {}, JSON.parse( "{\"a\": {\"__proto__\": {\"nestedDevMode\": true}}}" ) );
+	ok( !( "nestedDevMode" in {} ), "Object.prototype not polluted" );
+} );
+
 test("jQuery.each(Object,Function)", function() {
 	expect( 23 );
 
@@ -1488,5 +1502,16 @@ testIframeWithCallback( "Tolerating alias-masked DOM properties (#14074)", "core
 	function( errors ) {
 			expect( 1 );
 			deepEqual( errors, [], "jQuery loaded" );
+	}
+);
+
+testIframeWithCallback( "jQuery.extend( true, ... ) Object.prototype pollution - bundled jQuery 1.9.1 (src/sizzle/test/jquery.js)", "core/sizzleCopyExtend.html",
+	function( version, results ) {
+		expect( 5 );
+		strictEqual( version, "1.9.1", "src/sizzle/test/jquery.js is jQuery 1.9.1" );
+		strictEqual( results.deep, false, "Object.prototype not polluted by a top-level __proto__ key" );
+		strictEqual( results.nested, false, "Object.prototype not polluted by a nested __proto__ key" );
+		strictEqual( results.fn, false, "Object.prototype not polluted through jQuery.fn.extend" );
+		strictEqual( results.merged, "{\"a\":{\"b\":1,\"c\":2},\"d\":3}", "deep extend still merges plain objects" );
 	}
 );
