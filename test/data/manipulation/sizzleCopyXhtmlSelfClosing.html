@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	<title>Bundled jQuery 1.9.1 (src/sizzle/test/jquery.js): XHTML-style self-closing non-void tags are not expanded (gh-4642, CVE-2020-11022)</title>
+	<script src="../../../src/sizzle/test/jquery.js"></script>
+</head>
+<body>
+	<script>
+		// Thanks to Masato Kinugawa from Cure53 for providing the following test cases.
+		// Note: the xss() argument of each payload must equal its index in this array.
+		var htmlStrings = [
+				"<img alt=\"<x\" title=\"/><img src=url404 onerror=xss(0)>\">",
+				"<img alt=\"\n<x\" title=\"/>\n<img src=url404 onerror=xss(1)>\">",
+				"<style><style/><img src=url404 onerror=xss(2)>",
+				"<xmp><xmp/><img src=url404 onerror=xss(3)>",
+				"<title><title /><img src=url404 onerror=xss(4)>",
+				"<iframe><iframe/><img src=url404 onerror=xss(5)>",
+				"<noframes><noframes/><img src=url404 onerror=xss(6)>",
+				"<noscript><noscript/><img src=url404 onerror=xss(7)>",
+				"<foo\" alt=\"\" title=\"/><img src=url404 onerror=xss(8)>\">",
+				"<img alt=\"<x\" title=\"\" src=\"/><img src=url404 onerror=xss(9)>\">",
+				"<noscript/><img src=url404 onerror=xss(10)>",
+				"<option><style></option></select><img src=url404 onerror=xss(11)></style>",
+				"<template><style></template><img src=url404 onerror=xss(12)>"
+			],
+			executed = [],
+			results = {
+				version: jQuery.fn.jquery
+			},
+			div, container, i;
+
+		window.xss = function( index ) {
+			executed.push( index );
+		};
+
+		// .html() fast path
+		div = jQuery( "<div></div>" ).html( "<div/><div/>" );
+		results.htmlChildren = div.children().length;
+		results.htmlGrandchildren = div.children().children().length;
+
+		// buildFragment through .append()
+		div = jQuery( "<div></div>" ).append( "<div/><div/>" );
+		results.appendChildren = div.children().length;
+		results.appendGrandchildren = div.children().children().length;
+
+		// buildFragment through jQuery( html )
+		results.topLevel = jQuery( "<div/><div/>" ).length;
+
+		// Explicitly closed markup still produces sibling elements
+		results.explicitChildren = jQuery( "<div></div>" ).html( "<div></div><div></div>" ).children().length;
+
+		container = jQuery( "<div></div>" ).appendTo( document.body );
+		for ( i = 0; i < htmlStrings.length; i++ ) {
+			jQuery( "<div></div>" ).appendTo( container ).html( htmlStrings[ i ] );
+		}
+
+		// Give the url404 images time to fail and fire any injected onerror handler
+		setTimeout(function() {
+			results.executed = JSON.stringify( executed );
+			window.parent.iframeCallback( results );
+		}, 1000 );
+	</script>
+</body>
+</html>
