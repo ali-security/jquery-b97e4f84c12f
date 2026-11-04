@@ -2511,3 +2511,126 @@ testIframeWithCallback( "XHTML-style self-closing non-void tags are not expanded
 		strictEqual( results.executed, "[]", "No sanitized htmlString payload executes" );
 	}
 );
+
+test( "<option>/<optgroup> HTML isn't parsed inside a <select> wrapper (gh-4647)", function() {
+
+	var div,
+		probe = document.createElement("div");
+
+	// Support: IE <=9 only
+	// IE <=9 replaces <option> tags with their contents when inserted outside of
+	// the select element, so the select wrapper is still required there.
+	probe.innerHTML = "<option></option>";
+	if ( !probe.lastChild ) {
+		expect( 1 );
+		ok( true, "<option> needs a <select> wrapper in this browser" );
+		return;
+	}
+
+	expect( 6 );
+
+	// Inside a <select> wrapper the stray </select> would close the wrapper and
+	// change how the rest of the markup is parsed.
+	div = jQuery("<option>a</option></select><b>b</b>");
+	equal( div.length, 2, "jQuery(): option and its sibling are both created" );
+	equal( div[ 0 ] && div[ 0 ].nodeName.toLowerCase(), "option", "jQuery(): first node is the option" );
+	equal( div[ 1 ] && div[ 1 ].nodeName.toLowerCase(), "b", "jQuery(): second node is the sibling" );
+
+	equal( jQuery.parseHTML("<optgroup label='g'></optgroup></select><b>b</b>").length, 2,
+		"jQuery.parseHTML(): optgroup and its sibling are both created" );
+
+	div = jQuery("<div></div>").html("<option>a</option></select><b>b</b>");
+	equal( div.children().length, 2, "html(): option and its sibling are both created" );
+
+	div = jQuery("<div></div>").append("<optgroup label='g'></optgroup></select><b>b</b>");
+	equal( div.children().length, 2, "append(): optgroup and its sibling are both created" );
+});
+
+test( "Sanitized <option>/<optgroup> HTML doesn't get unsanitized by any manipulation method", function() {
+
+	var container, i, j, payload,
+		counter = 0,
+		executed = {},
+		payloads = [],
+		templates = [
+			"<option><style></option></select><img src=url404 onerror=xss(#)></style>",
+			"<optgroup><style></optgroup></select><img src=url404 onerror=xss(#)></style>",
+			"<option><xmp></option></select><img src=url404 onerror=xss(#)></xmp>"
+		],
+		methods = [
+			[ "html", function( html ) {
+				jQuery("<div></div>").appendTo( container ).html( html );
+			} ],
+			[ "append", function( html ) {
+				jQuery("<div></div>").appendTo( container ).append( html );
+			} ],
+			[ "prepend", function( html ) {
+				jQuery("<div></div>").appendTo( container ).prepend( html );
+			} ],
+			[ "before", function( html ) {
+				jQuery("<div></div>").appendTo( container ).before( html );
+			} ],
+			[ "after", function( html ) {
+				jQuery("<div></div>").appendTo( container ).after( html );
+			} ],
+			[ "jQuery", function( html ) {
+				jQuery( html );
+			} ],
+			[ "jQuery.parseHTML", function( html ) {
+				jQuery.parseHTML( html );
+			} ]
+		];
+
+	expect( templates.length * methods.length );
+
+	Globals.register("xss");
+	window.xss = function( index ) {
+		executed[ index ] = true;
+	};
+
+	container = jQuery("<div></div>").appendTo("#qunit-fixture");
+
+	for ( i = 0; i < templates.length; i++ ) {
+		for ( j = 0; j < methods.length; j++ ) {
+			payload = templates[ i ].replace( "#", counter );
+			payloads.push( methods[ j ][ 0 ] + "( " + payload + " )" );
+			methods[ j ][ 1 ]( payload );
+			counter++;
+		}
+	}
+
+	stop();
+	setTimeout(function() {
+		for ( i = 0; i < payloads.length; i++ ) {
+			ok( !executed[ i ], "Payload #" + i + " isn't executed: " + payloads[ i ] );
+		}
+		start();
+	}, 1000 );
+});
+
+testIframeWithCallback( "<option>/<optgroup> HTML isn't parsed inside a <select> wrapper - bundled jQuery 1.9.1 (src/sizzle/test/jquery.js) (gh-4647)", "manipulation/sizzleCopyOption.html",
+	function( results ) {
+
+		// Support: IE <=9 only
+		// IE <=9 replaces <option> tags with their contents when inserted outside of
+		// the select element, so the select wrapper is still required there.
+		if ( !results.optionParses ) {
+			expect( 4 );
+			strictEqual( results.version, "1.9.1", "src/sizzle/test/jquery.js is jQuery 1.9.1" );
+			strictEqual( results.supportOption, false, "jQuery.support.option is false" );
+			strictEqual( results.selectOptions, 2, "append(): options still go into a <select>" );
+			strictEqual( results.executed, "[]", "No sanitized <option>/<optgroup> payload executes" );
+			return;
+		}
+
+		expect( 8 );
+		strictEqual( results.version, "1.9.1", "src/sizzle/test/jquery.js is jQuery 1.9.1" );
+		strictEqual( results.supportOption, true, "jQuery.support.option is true" );
+		strictEqual( results.jQueryNodes, "option,b", "jQuery(): option and its sibling are both created" );
+		strictEqual( results.parseHTMLNodes, "optgroup,b", "jQuery.parseHTML(): optgroup and its sibling are both created" );
+		strictEqual( results.htmlChildren, "option,b", "html(): option and its sibling are both created" );
+		strictEqual( results.appendChildren, "optgroup,b", "append(): optgroup and its sibling are both created" );
+		strictEqual( results.selectOptions, 2, "append(): options still go into a <select>" );
+		strictEqual( results.executed, "[]", "No sanitized <option>/<optgroup> payload executes" );
+	}
+);
