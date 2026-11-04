@@ -1,3 +1,42 @@
 language: node_js
+dist: focal
 node_js:
 - '0.10'
+jobs:
+  include:
+    - name: "grunt build (node 0.10) + QUnit suite in headless Chrome"
+      node_js: '20'
+      # The stable-Chrome addon is kept for its shared-library dependencies; the
+      # suite itself runs on the pinned Chrome for Testing build installed below.
+      addons:
+        chrome: stable
+      install:
+        - nvm install 0.10
+        - nvm use 0.10
+        - node --version
+        - npm --version
+        - npm install
+      script:
+        - ./node_modules/.bin/grunt
+        - nvm use 20
+        - mkdir -p /tmp/driver
+        - (cd /tmp/driver && npm init -y && npm install puppeteer-core@24)
+        - (cd /tmp/driver && npx -y @puppeteer/browsers@2.13.2 install chrome@155.0.8059.84 --path /tmp/browsers)
+        - export SEAL_CHROME_BIN=/tmp/browsers/chrome/linux-155.0.8059.84/chrome-linux64/chrome
+        - $SEAL_CHROME_BIN --version
+        - PHP_CLI_SERVER_WORKERS=10 php -S 127.0.0.1:8000 -t . > /tmp/php-server.log 2>&1 &
+        - sleep 3
+        - >-
+          SEAL_CHROME_ARGS="--disable-features=DeprecateUnload,DeprecateUnloadByAllowList"
+          NODE_PATH=/tmp/driver/node_modules
+          SEAL_SKIP_TESTS="ajax: #14379 - jQuery.ajax() on unload =>
+          sends a synchronous XHR from an unload handler, which Chrome has blocked during page dismissal since v80 ;;
+          offset: fractions (see #7730 and #7885) =>
+          asserts exact fractional offsets, but Blink snaps layout to 1/64 px and reads back 999.984375 for 1000 ;;
+          css: widows & orphans #8936 =>
+          Chrome rejects widows/orphans value 0 so the asserted computed value differs ;;
+          Sizzle: selector: pseudo - :lang =>
+          Chrome native querySelectorAll returns no match for the escaped :lang() selector case the test asserts"
+          node test/seal-browser-runner.js "http://127.0.0.1:8000/test/index.html?dev"
+      after_script:
+        - sh test/seal-wait-for-log.sh
