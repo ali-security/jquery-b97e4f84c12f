@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	<title>Bundled jQuery 1.9.1 (src/sizzle/test/jquery.js) does not execute cross-domain js (gh-2432)</title>
+	<script src="../../../src/sizzle/test/jquery.js"></script>
+</head>
+<body>
+	<script>
+		var executed,
+			results = {},
+
+			// Requests answered by data/script.php, whose body is
+			// ok( true, "Script executed correctly." )
+			requests = [
+				[ "crossDomainEcma", { url: "../script.php?header=ecma", crossDomain: true } ],
+				[ "crossDomainJs", { url: "../script.php?header=script", crossDomain: true } ],
+				[ "crossDomainDataTypeScript", { url: "../script.php?header=ecma", crossDomain: true, dataType: "script" } ],
+				[ "sameDomain", { url: "../script.php?header=ecma" } ]
+			];
+
+		// Executing a response flags it
+		window.ok = function() {
+			executed = true;
+		};
+
+		// Fake transport answering every request with a text/javascript response,
+		// so cross-domain urls can be requested without a real cross-domain server
+		function fakeXhr() {
+			var xhr = {
+				readyState: 0,
+				status: 0,
+				statusText: "",
+				responseText: "",
+				open: function() {},
+				setRequestHeader: function() {},
+				abort: function() {},
+				getAllResponseHeaders: function() {
+					return "Content-Type: text/javascript\r\n";
+				},
+				send: function() {
+					xhr.readyState = 4;
+					xhr.status = 200;
+					xhr.statusText = "OK";
+					xhr.responseText = "ok( true );";
+				}
+			};
+			return xhr;
+		}
+
+		function executes( request ) {
+			executed = false;
+			request();
+			return executed;
+		}
+
+		function next() {
+			var request = requests.shift();
+
+			if ( request ) {
+				executed = false;
+				jQuery.ajax( jQuery.extend({
+					global: false,
+					complete: function() {
+						results[ request[ 0 ] ] = executed;
+						next();
+					}
+				}, request[ 1 ] ) );
+				return;
+			}
+
+			jQuery.ajaxSetup({
+				async: false,
+				global: false,
+				xhr: fakeXhr
+			});
+
+			results.crossDomainUrl = executes(function() {
+				jQuery.ajax({ url: "http://example.invalid/script.js" });
+			});
+			results.crossDomainProtocolLess = executes(function() {
+				jQuery.ajax({ url: "//example.invalid/script.js" });
+			});
+			results.crossDomainGet = executes(function() {
+				jQuery.get( "http://example.invalid/script.js" );
+			});
+			results.crossDomainPost = executes(function() {
+				jQuery.post( "http://example.invalid/script.js" );
+			});
+			results.sameDomainFake = executes(function() {
+				jQuery.ajax({ url: "script.js" });
+			});
+
+			window.parent.iframeCallback( jQuery.fn.jquery, results );
+		}
+
+		next();
+	</script>
+</body>
+</html>
